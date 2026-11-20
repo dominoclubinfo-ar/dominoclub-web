@@ -2,22 +2,48 @@
 <html lang="es">
 <head>
     <meta charset="utf-8">
+    <!--
+        Sin esta etiqueta, los navegadores móviles usan un viewport virtual de
+        ~980px y luego escalan la página para que quepa: la app se ve pequeña y
+        "alejada". Con width=device-width Compose recibe el ancho real del
+        teléfono y la interfaz se adapta.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0f172a">
     <title>Domino Club</title>
     <style>
-        /* Estilos minimalistas y ligeros para la pantalla de carga */
-        body, html {
+        html, body {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
             background-color: #0f172a; /* Color de fondo oscuro elegante */
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             color: #ffffff;
+            overflow: hidden;
+            overscroll-behavior: none;
         }
+
+        /* En móviles, 100dvh sigue el alto visible real (barra del navegador
+           incluida) y evita que el canvas quede cortado o con huecos. */
+        @supports (height: 100dvh) {
+            html, body {
+                height: 100dvh;
+            }
+        }
+
+        /* Compose monta su canvas directamente en <body>. */
+        body canvas {
+            display: block;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Pantalla de carga superpuesta hasta que Compose agrega su canvas. */
         #app-loading {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -44,7 +70,7 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        /* Ocultar la pantalla de carga una vez arranca Compose */
+        /* Oculta la pantalla de carga una vez arranca Compose */
         .loaded #app-loading {
             display: none;
         }
@@ -59,14 +85,25 @@
     <div class="loading-subtitle">Cargando experiencia multijugador...</div>
 </div>
 
-<!-- Contenedor donde se montará Compose Multiplatform -->
-<div id="root"></div>
-
 <script>
-    // Opcional: Detectar cuando el canvas o la app principal inicie para remover el splash
-    window.addEventListener("kotlinAppStarted", function() {
-        document.body.classList.add("loaded");
-    });
+    // Compose agrega su <canvas> al arrancar. En cuanto aparece, ocultamos el
+    // splash (el evento "kotlinAppStarted" ya no lo emite ComposeViewport).
+    (function () {
+        function hideSplashIfReady() {
+            if (document.querySelector("canvas")) {
+                document.body.classList.add("loaded");
+                observer.disconnect();
+                return true;
+            }
+            return false;
+        }
+
+        var observer = new MutationObserver(hideSplashIfReady);
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        // Por si el canvas ya existía antes de registrar el observer.
+        hideSplashIfReady();
+    })();
 </script>
 </body>
 </html>
