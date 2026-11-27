@@ -248,7 +248,36 @@
                 }, 500);
             }
 
+            function describeConsoleArg(value) {
+                if (value && value.stack) return String(value.stack);
+                if (typeof value === "string") return value;
+                try { return JSON.stringify(value); } catch (e) { return String(value); }
+            }
+
+            // Compose/Kotlin pueden capturar una excepción y mandarla solo a la
+            // consola. En iOS no hay consola visible, así que la levantamos al
+            // mismo overlay para saber por qué quedó el canvas vacío.
+            function captureConsoleError(method, filterLog) {
+                if (!window.console || typeof console[method] !== "function") return;
+                var original = console[method];
+                console[method] = function () {
+                    var text = Array.prototype.map.call(arguments, describeConsoleArg).join(" ");
+                    if (/Exception|TypeError|ReferenceError|Uncaught|Cannot read|is not a function|failed/i.test(text) &&
+                        (!filterLog || /Kotlin|Compose|Wasm|Exception|PreloadEmojiFont|kmauth/i.test(text))) {
+                        showFatal(
+                            "No se pudo dibujar Domino Club",
+                            method.toUpperCase() + ": " + text.substring(0, 1200)
+                        );
+                    }
+                    return original.apply(console, arguments);
+                };
+            }
+
             function start() {
+                captureConsoleError("error", false);
+                captureConsoleError("warn", true);
+                captureConsoleError("log", true);
+
                 window.addEventListener("error", function (event) {
                     // Durante el arranque mostramos cualquier error, incluso si
                     // el canvas ya existe: una composición que falla deja el
