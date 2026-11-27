@@ -121,7 +121,12 @@
          * 3) Muestra el error en pantalla en vez de dejar la página en blanco.
          */
         (function () {
+            var fatalShown = false;
+            var appStartMark = Date.now();
+
             function showFatal(title, detail) {
+                if (fatalShown) return;
+                fatalShown = true;
                 document.body.classList.add("loaded");
 
                 var box = document.getElementById("app-error");
@@ -221,11 +226,34 @@
                     );
                 };
                 document.head.appendChild(script);
+
+                // Si Wasm arranca pero la composición falla, el canvas puede
+                // quedar vacío. Mostramos el fallo también en ese caso.
+                var ticks = 0;
+                var watchdog = setInterval(function () {
+                    if (document.querySelector("canvas")) {
+                        clearInterval(watchdog);
+                        return;
+                    }
+                    ticks++;
+                    if (ticks >= 40) {
+                        clearInterval(watchdog);
+                        showFatal(
+                            "Domino Club no terminó de iniciar",
+                            "El navegador descargó la aplicación pero no se creó la pantalla. " +
+                            "Cerrá la pestaña y volvé a abrirla. Si vuelve a pasar, " +
+                            "actualizá iOS y Safari a la última versión."
+                        );
+                    }
+                }, 500);
             }
 
             function start() {
                 window.addEventListener("error", function (event) {
-                    if (document.querySelector("canvas")) return;
+                    // Durante el arranque mostramos cualquier error, incluso si
+                    // el canvas ya existe: una composición que falla deja el
+                    // canvas vacío y antes parecía una pantalla azul.
+                    if (Date.now() - appStartMark > 60000 && document.querySelector("canvas")) return;
                     showFatal(
                         "No se pudo iniciar Domino Club",
                         (event && event.message) || "Error desconocido al cargar la aplicación."
@@ -233,7 +261,7 @@
                 });
 
                 window.addEventListener("unhandledrejection", function (event) {
-                    if (document.querySelector("canvas")) return;
+                    if (Date.now() - appStartMark > 60000 && document.querySelector("canvas")) return;
                     var reason = event && event.reason;
                     showFatal(
                         "No se pudo iniciar Domino Club",
